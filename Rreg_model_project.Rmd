@@ -1,0 +1,200 @@
+---
+title: "Modeling and prediction for movies"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+```
+
+### Load data
+
+```{r load-data}
+load("movies.Rdata")
+```
+
+## Part 1: Data
+
+The data set is comprised of 651 randomly sampled movies produced and released before 2016. The dataset provides information regarding the salient features in terms of genre of movie, runtime, nominations etc. and also includes information from Rotten Tomatoes and IMDB with respect to the rating of movies.
+
+With this dataset we can undertake only an observational study and no causal analysis can be completed. However, the study can be generalized to movies produced and released before 2016.
+
+## Part 2: Research question
+
+To determine the attributes of a movie which play a significant role in predicting its popularity.
+
+For the purpose of this analysis we will assume a significance level of 5%.
+
+## Part 3: Exploratory data analysis
+
+In order to begin our analysis, we would first want to define how to measure popularity. In the information available with us we have scores of critics and audience from Rotten Tomatoes and we have IMDB ratings as well.
+
+Let us try to understand the relationships between these variables through sumamry statistics, plots and a correlation study.
+
+```{r}
+summary(movies$critics_score)
+summary(movies$audience_score)
+summary(movies$imdb_rating)
+```
+
+
+```{r}
+ggplot(data=movies, aes(x=critics_score)) + 
+    geom_histogram(binwidth=5, fill="light blue")
+ggplot(data=movies, aes(x=audience_score)) + 
+    geom_histogram(binwidth=5, fill="light blue")
+ggplot(data=movies, aes(x=imdb_rating)) + 
+    geom_histogram(binwidth=.5, fill="light blue")
+```
+
+We may observe from the above plots that there are differencees between the critics scores, audience scores and IMDB ratings. This indicates that these ratings may not be measuringmovies from the same perspective. We can also compute the correltation between these scores to determine their relationship.
+
+```{r}
+cor(movies$critics_score, movies$audience_score)
+cor(movies$critics_score, movies$imdb_rating)
+cor(movies$audience_score, movies$imdb_rating)
+```
+
+As you may observe, there is higher correlation between audience scores and IMDB rating compared to critics scores. This must mainly be because IMDB ratings are a mix of critics scores and audience scores with a higher proportion towards audience scores.
+
+These differences between the scores are most likely because the perspectives of critics and the audience are different and need not neceesarily match. In this analysis we are attempting to predict the popularity of movies meaning the commercial success of movies which is mainly dependent on the audience. However, completely discounting the views of critics may also not be the right approach as some part of the commercial success also depends on reviws of critics.
+
+To overcome this, we may take a weighted average of these scores to determine popularity. We can assume the following weights to determine the popularity of movies: 
+
+50% - audience scores, 
+30% - IMDB rating since it has a higher propertion of audience; and 
+20% - critics scores. Using the following code we create another coloumn in our dataframe computing the popularity of the movies.
+
+```{r}
+movies$popularity <- (.2*movies$critics_score + .5*movies$audience_score + .3*10*movies$imdb_rating)
+```
+
+Note: Given that IMDB ratings are generally provided out of a score 10, we have mulitplied the ratings with an  adjustment factor of 10  to create uniformity across ratings/ scores.
+
+The next part of the exploratory analysis will be with respect to the explnatory variables. Let us try to draw plots to identify which of the variables may contribute to predicting the popularity of a movie.
+
+```{r}
+ggplot(data=movies, aes(x=title_type, y=popularity)) + 
+  geom_boxplot(fill="light blue")
+ggplot(data=movies, aes(x=genre, y=popularity)) + 
+  geom_boxplot(fill="light blue")
+ggplot(data=movies, aes(x=mpaa_rating, y=popularity)) + 
+  geom_boxplot(fill="light blue")
+ggplot(data=movies, aes(x=best_pic_win, y=popularity)) + 
+  geom_boxplot(fill="light blue")
+```
+
+We may observe from the boxplots above that each categorical variable there seems to be an impact on the popularity rating. For example documentary movies or unrated movies seem to have popularity scores in the higher limits compared to PG-13 movies or action movies.
+
+This indicates that these variables contribute to determining the popularity of the movie and we can go ahead with the next part of our analysis i.e creating a model to fit these predictors to assess the impact of the variables on the popularity of movies.
+
+* * *
+
+## Part 4: Modeling
+
+We will be using backward elimination model to determine the best model for predicting the popularity of movies i.e we will start with all the variables in other words the full model and we'll remove variables to create a parsimonious model.
+
+Before begining the exercise it would make sense to remove data which would evidently not proivde a lot of additional value to our analysis. This would include year of release as past events such as year of release will play no role in movies releasing in future years. Date of movie release would seem like a very flimsy reason to predict poularity. However, month of movie release could play an important factor as releasing moviees during summer or holiday seasons may significantly impact the success of a movie and therefore the variable is included in the intial full model.
+
+Given the number of names of actors and directors, including such variables may offset the entire model and therefore we have ignored the same. We will be concentrating more on whether there were awards won by the actors/ directors.
+
+We will start with the following initial variables:
+
+1. Title_type
+2. genre
+3. runtime
+4. mpaa_rating
+5. thtr_rel_month
+6. dvd_rel_month
+7. best_pic_win
+8. best_actor_win
+9. best_actress win
+10.best_dir_win
+
+Given that the object is to identify significant individual predictors of popularity of movies, we will be using a p value based selection methodology.
+
+Let us start with building the Full Model with the initial variables
+
+```{r}
+fullMod <- lm(popularity ~ genre + runtime + mpaa_rating + thtr_rel_month + dvd_rel_month +best_pic_win + title_type + best_actor_win + best_actress_win + best_dir_win, data=movies)
+summary(fullMod)
+```
+
+You may observe that the p value of the overall model is <2.2e-16 which is less than the sgnificance level and therefore the FUll Model can be stated to be significant. It is also to be noted that the adjusted R squared of the FUll Model is 28.13%.
+
+Now given that our objective is to identify which of the predictors are significant predictors. We can start eliminating variables which provide a p value of greater than the significance level i.e. 5 percent.
+
+Note: In case of cateogrical variables even where a single category has a significant p value then the whole variable is included in the model.
+
+Basis our elimination the following variables remain in the model:
+
+1. title_type
+2. genre
+3. runtime
+4. mpaa_rating
+5. best_dir_win
+
+Let us now build a model with the remaining variables
+```{r}
+finalMod <- lm(popularity ~ genre + runtime + mpaa_rating + title_type + best_dir_win, data=movies)
+summary(finalMod)
+```
+
+While the adjusted R Squared is around similar levels at 28.32 percent, every predictor in the model now is a signifcant predictor.
+
+It is interesting to note that while most of the genres do not have a significant value, it is the action & adventure genre (i.e. other) that has significant impact on the popularity of a movie. Giving a clear indication of the importance of the genre to popularity.
+
+It is even more interesting to note that award winning directors contribute much more to a movie's popularity than a award winning actor or actress or the movie itself
+
+### Model Diagnostics
+
+Lets plot the required graphs to determine the model diagnostics.
+
+```{r}
+ggplot(finalMod, aes(x=.fitted, y=.resid))+geom_point() + ggtitle("Residual vs Fitted Plot")
+hist(finalMod$residuals)
+qqnorm(finalMod$residuals)
+qqline(finalMod$residuals)
+```
+
+There is a decent scatter of the residuals around zero in the residuals vs fitted plot. The normal Q-Q plot and distribution of resideuals show a pretty normal distribution.
+
+Overall, the model diagnostic plots above show that the model is moderately valid.
+
+## Part 5: Prediction
+
+We can now test the  predictive capability of the model using the movies - Xmen Apocalypse and Finding Dory. The results are below.
+
+```{r}
+dory <- data.frame(title_type = "Feature Film", genre="Comedy", runtime=97, mpaa_rating="G", best_dir_win="no")
+predict(finalMod, dory, interval="predict", level = 0.95)
+```
+
+As per the actual data, Finding Dory scored 7.3 in IMDB, 94% in critics score and 84% in audience scores totalling a popularity score of 82.7. While this fits into 95% confidence interval, the score is closer to limits than the point estimate.
+
+```{r}
+xmen <- data.frame(title_type = "Feature Film", genre="Action & Adventure", runtime=108, mpaa_rating="PG-13", best_dir_win="no")
+predict(finalMod, xmen, interval="predict", level = 0.95)
+```
+
+As per the actual data, Xmen Apocalypse scored 7.0 in IMDB, 48% in critics score and 66% in audience scores totalling a popularity score - 63.8. While this fits into 95% confidence interval, similar to Finding Dory the score is closer to limits than the point extimate.
+
+* * *
+
+## Part 6: Conclusion
+
+In this analysis, we created a valid,multi-variable, linear regression model to determine whether it is possible to predict the popularity of movies. 
+
+As shown in Part 5, the predictive power of the model is limited and we may require further information to create a more robust model in terms of being a part of a franchise, quality of animation, VFX etc, marketing campaigns of the respective studios etc.
+
+Inputing further information would create a more robust model and increase the predictive power.
